@@ -1,64 +1,69 @@
 import random
 
-def count_distinct_with_threshold(elements, buffer_size=5):
-    """Count distinct elements using volatility and probability threshold"""
-    buffer = {}  # element -> volatility
-    p = 1.0      # Probability threshold (starts at maximum)
+class CVMEstimator:
+    def __init__(self, buffer_size):
+        self.max_size = buffer_size
+        self.buffer = {}
+        self.p = 1.0
     
-    for element in elements:
-        volatility = random.random()
+    def process_element(self, element):
+        """Process one element according to Algorithm D steps"""
+
+        u = random.random()
+
+        if element in self.buffer:
+            del self.buffer[element]
         
-        print(f"Processing {element} with volatility {volatility:.3f}, p = {p:.3f}")
+        if u >= self.p:
+            return
         
-        # Remove element if it exists
-        if element in buffer:
-            print(f"  Removing existing {element}")
-            del buffer[element]
+        if len(self.buffer) < self.max_size:
+            self.buffer[element] = u
+            return
         
-        # Only consider elements with volatility < p
-        if volatility >= p:
-            print(f"  Skipping {element} (volatility >= p)")
-            continue
+        # Find element with maximum volatility
+        if not self.buffer:
+            self.buffer[element] = u
+            return
+            
+        max_element = max(self.buffer.items(), key=lambda x: x[1])
+        max_key, max_volatility = max_element
         
-        # Add to buffer if there's space
-        if len(buffer) < buffer_size:
-            buffer[element] = volatility
-            print(f"  Added {element} to buffer")
+        if u > max_volatility:
+            # New element has higher volatility than max in buffer
+            self.p = u
         else:
-            # Buffer is full - need to make room or adjust p
-            max_element = max(buffer.items(), key=lambda x: x[1])
-            max_key, max_volatility = max_element
-            
-            print(f"  Buffer full! Max volatility element: {max_key} ({max_volatility:.3f})")
-            
-            if volatility > max_volatility:
-                # New element has higher volatility - adjust p but don't add
-                p = volatility
-                print(f"  New p = {p:.3f}")
-            else:
-                # Replace highest volatility element
-                del buffer[max_key]
-                buffer[element] = volatility
-                p = max_volatility
-                print(f"  Replaced {max_key} with {element}, new p = {p:.3f}")
+            # Replace max element with new element
+            del self.buffer[max_key]
+            self.buffer[element] = u
+            self.p = max_volatility
     
-    # Estimate: buffer_size / p
-    estimate = len(buffer) / p
-    print(f"\nFinal buffer: {buffer}")
-    print(f"Final p: {p:.3f}")
-    
-    return estimate
+    def estimate_distinct_count(self):
+        """Return the CVM estimate: |B| / p"""
+        if len(self.buffer) == 0:
+            return 0.0
+        return len(self.buffer) / self.p
 
 def main():
-    test_sequence = [1, 2, 3, 4, 5, 6, 7, 8]
+    # Test the estimator
+    estimator = CVMEstimator(buffer_size=3)
     
-    print("Testing with probability threshold:")
-    random.seed(42)
-    result = count_distinct_with_threshold(test_sequence, buffer_size=3)
-    print(f"\nEstimated count: {result:.2f}")
+    test_sequence = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     
-    exact = len(set(test_sequence))
-    print(f"Exact count: {exact}")
+    print("Processing elements:")
+    for element in test_sequence:
+        estimator.process_element(element)
+        estimate = estimator.estimate_distinct_count()
+        print(f"After {element}: buffer={list(estimator.buffer.keys())}, "
+              f"p={estimator.p:.3f}, estimate={estimate:.2f}")
+    
+    final_estimate = estimator.estimate_distinct_count()
+    exact_count = len(set(test_sequence))
+    
+    print(f"\nFinal estimate: {final_estimate:.2f}")
+    print(f"Exact count: {exact_count}")
+    print(f"Error: {abs(final_estimate - exact_count):.2f}")
 
 if __name__ == "__main__":
+    random.seed(42)
     main() 
