@@ -1,27 +1,30 @@
 import random
+import argparse
+import sys
 
 class CVMEstimator:
-    def __init__(self, buffer_size):
+    def __init__(self, buffer_size, seed=None):
         self.max_size = buffer_size
         self.buffer = {}
         self.p = 1.0
+        
+        if seed is not None:
+            random.seed(seed)
     
     def process_element(self, element):
         """Process one element according to Algorithm D steps"""
-
         u = random.random()
-
+        
         if element in self.buffer:
             del self.buffer[element]
         
         if u >= self.p:
-            return
+            return  # Skip this element
         
         if len(self.buffer) < self.max_size:
             self.buffer[element] = u
             return
         
-        # Find element with maximum volatility
         if not self.buffer:
             self.buffer[element] = u
             return
@@ -30,10 +33,8 @@ class CVMEstimator:
         max_key, max_volatility = max_element
         
         if u > max_volatility:
-            # New element has higher volatility than max in buffer
             self.p = u
         else:
-            # Replace max element with new element
             del self.buffer[max_key]
             self.buffer[element] = u
             self.p = max_volatility
@@ -45,25 +46,32 @@ class CVMEstimator:
         return len(self.buffer) / self.p
 
 def main():
-    # Test the estimator
-    estimator = CVMEstimator(buffer_size=3)
+    parser = argparse.ArgumentParser(description='CVM algorithm for distinct element estimation')
+    parser.add_argument('-s', '--seed', type=int, help='Random seed')
+    parser.add_argument('size', type=int, help='Buffer size')
+    parser.add_argument('filename', help='Input file')
     
-    test_sequence = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    args = parser.parse_args()
     
-    print("Processing elements:")
-    for element in test_sequence:
-        estimator.process_element(element)
-        estimate = estimator.estimate_distinct_count()
-        print(f"After {element}: buffer={list(estimator.buffer.keys())}, "
-              f"p={estimator.p:.3f}, estimate={estimate:.2f}")
-    
-    final_estimate = estimator.estimate_distinct_count()
-    exact_count = len(set(test_sequence))
-    
-    print(f"\nFinal estimate: {final_estimate:.2f}")
-    print(f"Exact count: {exact_count}")
-    print(f"Error: {abs(final_estimate - exact_count):.2f}")
+    try:
+        # Initialize estimator
+        estimator = CVMEstimator(args.size, args.seed)
+        
+        with open(args.filename, 'r') as f:
+            for line in f:
+                element = line.strip()
+                if element:  # Skip empty lines
+                    estimator.process_element(element)
+        
+        result = estimator.estimate_distinct_count()
+        print(int(round(result)))
+        
+    except FileNotFoundError:
+        print(f"Error: File '{args.filename}' not found.", file=sys.stderr)
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
 
 if __name__ == "__main__":
-    random.seed(42)
     main() 
